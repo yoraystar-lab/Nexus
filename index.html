@@ -1,0 +1,1119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEXUS — Multi-Agent Intelligence</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Playfair+Display:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+
+<!-- Firebase MUST be in head so it loads before body scripts -->
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0f1115;--panel:#161922;--panel-2:#1c2130;
+  --border:rgba(255,255,255,0.07);--accent:#7c5cff;
+  --accent-soft:rgba(124,92,255,0.15);--accent-glow:rgba(124,92,255,0.35);
+  --text:#e6e9f2;--muted:rgba(230,233,242,0.4);--radius:16px;--sw:260px;
+}
+html,body{height:100%;background:var(--bg);font-family:'Inter',sans-serif;color:var(--text);overflow:hidden}
+.app{display:flex;height:100vh}
+
+/* ── SIDEBAR ── */
+.sidebar{width:var(--sw);background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0}
+.sidebar-header{padding:20px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px}
+.logo-glow{width:38px;height:38px;background:var(--accent);border-radius:10px;display:flex;align-items:center;justify-content:center;box-shadow:0 0 18px var(--accent-glow);transform:rotate(45deg)}
+.logo-glow i{transform:rotate(-45deg);font-size:20px;color:#fff}
+.logo-text{font-family:'Playfair Display',serif;font-size:17px;font-weight:700;color:var(--accent)}
+.new-chat-btn{margin:12px 16px;padding:11px;background:var(--accent-soft);border:1px solid var(--border);border-radius:30px;color:var(--text);font-size:14px;font-weight:500;display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;transition:.2s}
+.new-chat-btn:hover{background:var(--accent);border-color:var(--accent)}
+.model-selector{padding:10px 14px;margin:0 14px 4px;background:var(--panel-2);border:1px solid var(--border);border-radius:30px;display:flex;align-items:center;gap:8px}
+.model-selector i{color:var(--accent);font-size:13px}
+.model-selector select{flex:1;background:transparent;border:none;color:var(--text);font-size:12px;outline:none;cursor:pointer}
+.model-selector select option{background:#1c2130}
+.chat-list{flex:1;overflow-y:auto;padding:6px}
+.chat-item{padding:10px 14px;margin-bottom:3px;border-radius:30px;display:flex;align-items:center;gap:9px;cursor:pointer;transition:.2s;color:var(--muted);border:1px solid transparent;font-size:13px}
+.chat-item:hover{background:var(--panel-2);border-color:var(--border);color:var(--text)}
+.chat-item.active{background:var(--accent-soft);border-color:var(--accent);color:var(--text)}
+.chat-item i{font-size:13px;width:18px;color:var(--accent);flex-shrink:0}
+.chat-name{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chat-actions{display:flex;gap:5px;opacity:0;transition:.2s}
+.chat-item:hover .chat-actions{opacity:1}
+.chat-actions i{font-size:11px;color:var(--muted);padding:2px 4px;cursor:pointer;border-radius:4px;transition:.2s}
+.chat-actions i:hover{color:var(--accent);background:var(--accent-soft)}
+
+/* ── SIDEBAR FOOTER ── */
+.sidebar-footer{padding:10px 14px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:7px}
+.unsaved-notice{font-size:11px;color:#ffc107;text-align:center;padding:5px;background:rgba(255,193,7,0.07);border-radius:8px}
+.google-btn{display:flex;align-items:center;gap:9px;padding:9px 13px;background:var(--panel-2);border:1px solid var(--border);border-radius:30px;color:var(--text);font-size:12px;font-weight:500;cursor:pointer;transition:.2s;width:100%;text-align:left}
+.google-btn:hover{border-color:#4285f4;background:rgba(66,133,244,0.08)}
+.google-btn.signed-in{border-color:#34a853;background:rgba(52,168,83,0.08)}
+.g-icon{width:17px;height:17px;flex-shrink:0}
+.g-avatar{width:24px;height:24px;border-radius:50%;object-fit:cover;flex-shrink:0}
+.g-avatar-ph{width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,#4285f4,#34a853);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0}
+.icon-row{display:flex;gap:6px}
+.icon-btn{flex:1;display:flex;align-items:center;justify-content:center;gap:5px;padding:8px;background:var(--panel-2);border:1px solid var(--border);border-radius:18px;color:var(--muted);font-size:11px;cursor:pointer;transition:.2s}
+.icon-btn:hover{border-color:var(--accent);color:var(--accent)}
+.mem-dot{width:6px;height:6px;border-radius:50%;background:#4caf50;box-shadow:0 0 5px #4caf50;display:inline-block;margin-left:4px}
+.mem-dot.off{background:var(--muted);box-shadow:none}
+
+/* ── MAIN ── */
+.main-content{flex:1;display:flex;flex-direction:column;background:var(--bg);min-width:0}
+header{padding:14px 24px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+.chat-info{display:flex;align-items:center;gap:9px}
+.chat-info i{color:var(--accent);font-size:18px}
+.chat-info h3{font-weight:500;font-size:15px}
+.hstatus{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted)}
+.sdot{width:7px;height:7px;border-radius:50%;background:#4caf50;box-shadow:0 0 8px #4caf50}
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:500;margin-left:6px}
+.badge.joke{background:rgba(255,193,7,0.1);border:1px solid rgba(255,193,7,0.3);color:#ffc107}
+.badge.tts{background:rgba(76,175,80,0.1);border:1px solid rgba(76,175,80,0.3);color:#4caf50}
+.badge.hidden{display:none}
+
+/* ── MESSAGES ── */
+.messages{flex:1;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column;gap:14px}
+.msg-wrap{display:flex;flex-direction:column;gap:5px;animation:fi .3s ease}
+.msg-wrap.user{align-items:flex-end}
+.msg-wrap.ai{align-items:flex-start}
+.bubble{max-width:76%;padding:12px 16px;border-radius:var(--radius);line-height:1.7;font-size:14px;white-space:pre-wrap;word-wrap:break-word}
+.bubble.user{background:var(--accent);color:#fff;border-bottom-right-radius:4px}
+.bubble.ai{background:var(--panel);border:1px solid var(--border);border-left:3px solid var(--accent);border-bottom-left-radius:4px}
+.msg-btns{display:flex;gap:5px;opacity:0;transition:.2s}
+.msg-wrap:hover .msg-btns{opacity:1}
+.mbtn{background:var(--panel-2);border:1px solid var(--border);color:var(--muted);padding:3px 9px;border-radius:20px;font-size:11px;cursor:pointer;transition:.2s;display:flex;align-items:center;gap:4px}
+.mbtn:hover{border-color:var(--accent);color:var(--accent)}
+.mbtn.on{border-color:#4caf50;color:#4caf50;background:rgba(76,175,80,0.08)}
+
+/* Generated image */
+.img-card{max-width:72%;border-radius:var(--radius);overflow:hidden;border:1px solid var(--border);animation:fi .3s ease}
+.img-card img{display:block;width:100%;cursor:pointer}
+.img-card-footer{padding:7px 12px;background:var(--panel);font-size:11px;color:var(--muted);display:flex;align-items:center;justify-content:space-between}
+.img-card-footer a{color:var(--accent);text-decoration:none;font-size:11px}
+.img-card-footer a:hover{text-decoration:underline}
+
+/* Loading */
+.img-loading{max-width:72%;padding:16px 20px;background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);display:flex;align-items:center;gap:10px;color:var(--muted);font-size:13px}
+.spinner{width:18px;height:18px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Typing */
+.typing-el{align-self:flex-start;font-size:13px;color:var(--muted);animation:pulse 1.2s infinite;padding:11px 16px;background:var(--panel);border-radius:var(--radius);border:1px solid var(--border)}
+
+/* Welcome */
+.welcome{text-align:center;padding:50px 20px;animation:fi .6s ease}
+.welcome h2{font-family:'Playfair Display',serif;font-size:28px;margin-bottom:10px;background:linear-gradient(135deg,#fff,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.welcome p{color:var(--muted);margin-bottom:20px;font-size:14px}
+.suggestions{display:flex;flex-wrap:wrap;justify-content:center;gap:8px}
+.suggestions button{background:var(--panel-2);border:1px solid var(--border);color:var(--muted);padding:7px 15px;border-radius:50px;cursor:pointer;transition:.2s;font-size:12px}
+.suggestions button:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+
+/* ── INPUT AREA ── */
+.input-area{padding:10px 24px 20px;border-top:1px solid var(--border);background:var(--bg);flex-shrink:0}
+.toolbar{display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap}
+.tbtn{background:var(--panel-2);border:1px solid var(--border);color:var(--muted);padding:5px 11px;border-radius:20px;font-size:12px;cursor:pointer;transition:.2s;display:flex;align-items:center;gap:5px;white-space:nowrap}
+.tbtn:hover{border-color:var(--accent);color:var(--accent)}
+.tbtn.active-red{border-color:#f44336;color:#f44336;background:rgba(244,67,54,0.08);animation:pr 1s ease infinite}
+.tbtn.active-purple{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.tbtn.active-green{border-color:#4caf50;color:#4caf50;background:rgba(76,175,80,0.08)}
+@keyframes pr{0%,100%{box-shadow:0 0 0 0 rgba(244,67,54,0.3)}50%{box-shadow:0 0 0 5px rgba(244,67,54,0)}}
+
+/* File preview strip */
+.file-strip{display:none;align-items:center;gap:8px;padding:8px 12px;background:rgba(124,92,255,0.07);border:1px solid rgba(124,92,255,0.2);border-radius:10px;margin-bottom:7px;font-size:12px}
+.file-strip i{color:var(--accent);font-size:15px}
+.file-strip-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.file-strip-x{cursor:pointer;color:var(--muted);padding:2px 6px;border-radius:4px;transition:.2s;font-size:14px;font-weight:600;line-height:1}
+.file-strip-x:hover{color:#f44336;background:rgba(244,67,54,0.1)}
+
+.iw{display:flex;gap:9px;background:var(--panel);border:1px solid var(--border);border-radius:30px;padding:9px 16px;transition:.2s;align-items:flex-end}
+.iw:focus-within{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+textarea{flex:1;background:none;border:none;outline:none;resize:none;color:var(--text);font-size:14px;max-height:140px;font-family:'Inter',sans-serif;line-height:1.5;padding-top:2px}
+textarea::placeholder{color:var(--muted)}
+.sbtn{background:var(--accent);border:none;width:34px;height:34px;border-radius:50%;cursor:pointer;color:#fff;transition:.2s;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.sbtn:hover{transform:scale(1.1);box-shadow:0 0 14px var(--accent-glow)}
+
+/* ── MODALS ── */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);align-items:center;justify-content:center;z-index:999}
+.overlay.on{display:flex}
+.modal-box{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);width:90%;max-width:420px;overflow:hidden;animation:fi .2s ease}
+.modal-head{padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.modal-head h3{font-size:15px;font-weight:600}
+.modal-x{background:none;border:none;color:var(--muted);font-size:17px;cursor:pointer;padding:3px;transition:.2s}
+.modal-x:hover{color:var(--text)}
+.modal-body{padding:18px 22px;display:flex;flex-direction:column;gap:18px}
+.s-row{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
+.s-info{flex:1}
+.s-label{font-size:13px;font-weight:500;margin-bottom:3px}
+.s-desc{font-size:11px;color:var(--muted);line-height:1.5}
+.toggle{position:relative;width:42px;height:22px;flex-shrink:0;margin-top:2px}
+.toggle input{opacity:0;width:0;height:0}
+.tslider{position:absolute;inset:0;background:var(--panel-2);border:1px solid var(--border);border-radius:22px;cursor:pointer;transition:.25s}
+.tslider:before{content:'';position:absolute;width:14px;height:14px;left:3px;top:3px;background:var(--muted);border-radius:50%;transition:.25s}
+.toggle input:checked+.tslider{background:var(--accent-soft);border-color:var(--accent)}
+.toggle input:checked+.tslider:before{transform:translateX(20px);background:var(--accent)}
+.modal-foot{padding:14px 22px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.modal-foot span{font-size:11px;color:var(--muted)}
+.clr-btn{padding:6px 13px;background:rgba(244,67,54,0.08);border:1px solid rgba(244,67,54,0.25);border-radius:20px;color:#f44336;font-size:11px;cursor:pointer;transition:.2s}
+.clr-btn:hover{background:rgba(244,67,54,0.18)}
+.rename-input{width:100%;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);outline:none;font-family:'Inter',sans-serif;font-size:14px;margin-bottom:12px}
+.modal-btns{display:flex;gap:8px;justify-content:flex-end}
+.modal-btns button{padding:7px 15px;border-radius:20px;border:1px solid var(--border);background:var(--panel-2);color:var(--text);cursor:pointer;font-size:13px;transition:.2s}
+.modal-btns button:hover{border-color:var(--accent);color:var(--accent)}
+.modal-btns button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.modal-btns button.primary:hover{opacity:.9}
+
+/* scrollbar */
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:10px}
+::-webkit-scrollbar-thumb:hover{background:var(--accent)}
+
+@keyframes fi{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pulse{0%,100%{opacity:.4}50%{opacity:1}}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- ══ SIDEBAR ══ -->
+<div class="sidebar">
+  <div class="sidebar-header">
+    <div class="logo-glow"><i class="fas fa-brain"></i></div>
+    <span class="logo-text">NEXUS</span>
+  </div>
+
+  <div class="new-chat-btn" onclick="createNewChat()">
+    <i class="fas fa-plus"></i><span>New Chat</span>
+  </div>
+
+  <div class="model-selector">
+    <i class="fas fa-robot"></i>
+    <select id="modelSelect">
+      <option value="llama-3.3-70b-versatile" selected>Llama 3.3 70B (Best)</option>
+      <option value="llama-3.1-8b-instant">Llama 3.1 8B (Fastest)</option>
+      <option value="mixtral-8x7b-32768">Mixtral 8x7B</option>
+      <option value="gemma2-9b-it">Gemma 2 9B</option>
+    </select>
+  </div>
+
+  <div class="chat-list" id="chatList"></div>
+
+  <div class="sidebar-footer">
+    <div id="unsavedNotice" class="unsaved-notice" style="display:none">🔒 Sign in to save chats</div>
+    <div class="google-btn" id="googleBtn" onclick="handleGoogleAuth()">
+      <svg class="g-icon" viewBox="0 0 24 24">
+        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+      </svg>
+      <span id="gBtnText">Sign in with Google</span>
+    </div>
+    <div class="icon-row">
+      <div class="icon-btn" onclick="openSettings()"><i class="fas fa-cog"></i><span>Settings</span></div>
+      <div class="icon-btn"><i class="fas fa-brain"></i><span>Memory</span><span class="mem-dot" id="memDot"></span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MAIN ══ -->
+<div class="main-content">
+  <header>
+    <div class="chat-info">
+      <i class="fas fa-comments"></i>
+      <h3 id="chatTitle">General Chat</h3>
+    </div>
+    <div class="hstatus">
+      <span class="sdot"></span>
+      <span>Groq AI</span>
+      <span class="badge joke hidden" id="jokeBadge">😂 Joke Mode</span>
+      <span class="badge tts hidden" id="ttsBadge">🔊 Speaking</span>
+    </div>
+  </header>
+
+  <div class="messages" id="messages">
+    <div class="welcome" id="welcome">
+      <h2>Welcome to NEXUS</h2>
+      <p>AI chat • Voice • Image generation • File upload</p>
+      <div class="suggestions">
+        <button onclick="useSug(this)">Generate an image of a futuristic city</button>
+        <button onclick="useSug(this)">Explain how black holes work</button>
+        <button onclick="useSug(this)">Write me a short poem</button>
+        <button onclick="useSug(this)">Generate an image of a sunset over mountains</button>
+        <button onclick="useSug(this)">Give me a startup idea for 2025</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="input-area">
+    <div class="toolbar">
+      <button class="tbtn" id="micBtn" onclick="toggleVoice()">
+        <i class="fas fa-microphone"></i><span id="micLabel">Voice</span>
+      </button>
+      <button class="tbtn" id="imgBtn" onclick="toggleImgMode()">
+        <i class="fas fa-image"></i><span id="imgLabel">Image Gen</span>
+      </button>
+      <button class="tbtn" onclick="document.getElementById('fileIn').click()">
+        <i class="fas fa-paperclip"></i><span>Attach File</span>
+      </button>
+      <button class="tbtn" id="ttsBtn" onclick="toggleAutoTTS()">
+        <i class="fas fa-volume-up"></i><span id="ttsLabel">Auto TTS</span>
+      </button>
+    </div>
+    <input type="file" id="fileIn" style="display:none"
+      accept=".txt,.md,.csv,.js,.py,.html,.css,.json,.ts,.xml,image/*,application/pdf"
+      onchange="handleFile(this)">
+
+    <div class="file-strip" id="fileStrip">
+      <i class="fas fa-file-alt" id="fileIcon"></i>
+      <span class="file-strip-name" id="fileName">file.txt</span>
+      <span style="color:var(--muted);font-size:11px" id="fileSize"></span>
+      <span class="file-strip-x" onclick="clearFile()">✕</span>
+    </div>
+
+    <div class="iw">
+      <textarea id="inp" rows="1" placeholder="Ask NEXUS anything..."
+        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send();}"></textarea>
+      <button class="sbtn" onclick="send()"><i class="fas fa-arrow-up"></i></button>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ══ SETTINGS MODAL ══ -->
+<div class="overlay" id="settingsOverlay">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>⚙️ Settings</h3>
+      <button class="modal-x" onclick="closeSettings()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="s-row">
+        <div class="s-info">
+          <div class="s-label">😂 Jokes &amp; Emoji Mode</div>
+          <div class="s-desc">NEXUS responds with humor and emojis in every message.</div>
+        </div>
+        <label class="toggle"><input type="checkbox" id="jokeToggle" onchange="saveSettings()"><span class="tslider"></span></label>
+      </div>
+      <div class="s-row">
+        <div class="s-info">
+          <div class="s-label">🧠 Cross-Chat Memory</div>
+          <div class="s-desc">NEXUS learns from previous conversations for better context.</div>
+        </div>
+        <label class="toggle"><input type="checkbox" id="memToggle" checked onchange="saveSettings()"><span class="tslider"></span></label>
+      </div>
+      <div class="s-row">
+        <div class="s-info">
+          <div class="s-label">🔊 Auto Text-to-Speech</div>
+          <div class="s-desc">Automatically read every AI response aloud.</div>
+        </div>
+        <label class="toggle"><input type="checkbox" id="autoTTSToggle" onchange="saveSettings()"><span class="tslider"></span></label>
+      </div>
+      <div class="s-row" style="flex-direction:column;gap:8px">
+        <div class="s-info">
+          <div class="s-label">🌡️ Creativity — <span id="tempDisplay">0.7</span></div>
+          <div class="s-desc">Lower = more precise, Higher = more creative.</div>
+        </div>
+        <input type="range" id="tempSlider" min="0" max="1" step="0.1" value="0.7"
+          style="width:100%;accent-color:var(--accent);cursor:pointer" oninput="document.getElementById('tempDisplay').textContent=this.value" onchange="saveSettings()">
+      </div>
+    </div>
+    <div class="modal-foot">
+      <span id="memCount">Memory: 0 items</span>
+      <button class="clr-btn" onclick="clearMem()">🗑 Clear Memory</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ RENAME MODAL ══ -->
+<div class="overlay" id="renameOverlay">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>Rename Chat</h3>
+      <button class="modal-x" onclick="closeRename()">✕</button>
+    </div>
+    <div style="padding:18px 22px">
+      <input class="rename-input" id="renameInp" type="text" placeholder="Chat name">
+      <div class="modal-btns">
+        <button onclick="closeRename()">Cancel</button>
+        <button class="primary" onclick="confirmRename()">Rename</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════
+//  FIREBASE INIT
+// ═══════════════════════════════════════════
+let auth, db;
+try {
+  firebase.initializeApp({
+    apiKey: "AIzaSyBsknrpP-a1_qkfokjbKjzitmRc048NfBs",
+    authDomain: "nexus-6a947.firebaseapp.com",
+    projectId: "nexus-6a947",
+    storageBucket: "nexus-6a947.firebasestorage.app",
+    messagingSenderId: "1064303302527",
+    appId: "1:1064303302527:web:5dbb4ce3de22d17b742c4a"
+  });
+  auth = firebase.auth();
+  db   = firebase.firestore();
+  console.log('✅ Firebase initialized');
+} catch(e) {
+  console.warn('Firebase failed:', e.message);
+}
+
+// ═══════════════════════════════════════════
+//  CONFIG
+// ═══════════════════════════════════════════
+const GROQ_KEY = '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';
+
+// ═══════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════
+let chats = [], currentId = null, renameTarget = null, user = null;
+let cfg = { joke:false, mem:true, autoTTS:false, temp:0.7 };
+let imgMode = false, listening = false;
+let attached = null;   // { name, size, content, isImg, mime }
+let activeSpeech = null;
+let recog = null;
+
+// ═══════════════════════════════════════════
+//  AUTH
+// ═══════════════════════════════════════════
+function setupAuth() {
+  if (!auth) { guestMode(); return; }
+  auth.onAuthStateChanged(async u => {
+    user = u;
+    if (u) {
+      renderGoogleBtn(u);
+      document.getElementById('unsavedNotice').style.display = 'none';
+      await fsLoadChats();
+    } else {
+      renderGoogleBtn(null);
+      document.getElementById('unsavedNotice').style.display = 'block';
+      localLoad();
+    }
+  });
+}
+
+function guestMode() {
+  document.getElementById('unsavedNotice').style.display = 'block';
+  localLoad();
+}
+
+function handleGoogleAuth() {
+  if (!auth) { alert('Firebase not available.'); return; }
+  // Firebase Auth popup requires http/https — won't work on file://
+  if (location.protocol === 'file:') {
+    alert('⚠️ Google Sign-In requires the app to be hosted on a website.\n\nUpload this file to GitHub Pages (yoraystar-lab.github.io/Nexus) and sign in from there.\n\nFor now, your chats are saved locally in this browser.');
+    return;
+  }
+  if (user) {
+    if (confirm('Sign out?')) auth.signOut();
+  } else {
+    auth.signInWithPopup(new firebase.auth.GoogleAuthProvider())
+      .catch(e => {
+        console.error('Sign-in error:', e);
+        alert('Sign-in failed: ' + e.message);
+      });
+  }
+}
+
+function renderGoogleBtn(u) {
+  const btn = document.getElementById('googleBtn');
+  const txt = document.getElementById('gBtnText');
+  if (u) {
+    btn.classList.add('signed-in');
+    const av = u.photoURL
+      ? `<img class="g-avatar" src="${u.photoURL}">`
+      : `<div class="g-avatar-ph">${(u.displayName||'U')[0]}</div>`;
+    btn.innerHTML = `${av}<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px">${u.displayName||u.email}</span><i class="fas fa-sign-out-alt" style="color:var(--muted);font-size:11px"></i>`;
+  } else {
+    btn.classList.remove('signed-in');
+    btn.innerHTML = `<svg class="g-icon" viewBox="0 0 24 24">
+      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+    <span id="gBtnText">Sign in with Google</span>`;
+  }
+}
+
+// ═══════════════════════════════════════════
+//  FIRESTORE
+// ═══════════════════════════════════════════
+async function fsLoadChats() {
+  try {
+    const snap = await db.collection('users').doc(user.uid)
+      .collection('chats').orderBy('createdAt','desc').get();
+    chats = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+    if (!chats.length) { await createNewChat(); return; }
+    currentId = chats[0].id;
+    renderList(); loadChat(currentId);
+  } catch(e) { console.error('Firestore load:', e); localLoad(); }
+}
+
+async function fsSave(chat) {
+  if (!user || !db) return;
+  const c = { ...chat };
+  // Firestore doesn't allow undefined — strip it
+  c.messages = (c.messages||[]).map(m => ({ role:m.role, content:m.content||'', timestamp:m.timestamp||0 }));
+  try { await db.collection('users').doc(user.uid).collection('chats').doc(c.id).set(c); }
+  catch(e) { console.error('Firestore save:', e); }
+}
+
+async function fsDelete(id) {
+  if (!user || !db) return;
+  try { await db.collection('users').doc(user.uid).collection('chats').doc(id).delete(); }
+  catch(e) { console.error('Firestore delete:', e); }
+}
+
+// ═══════════════════════════════════════════
+//  LOCAL STORAGE
+// ═══════════════════════════════════════════
+function localLoad() {
+  try {
+    const s = localStorage.getItem('nx_chats');
+    chats = s ? JSON.parse(s) : [];
+  } catch { chats = []; }
+  if (!chats.length) chats = [{ id:uid(), name:'General Chat', messages:[], createdAt:Date.now() }];
+  currentId = chats[0].id;
+  renderList(); loadChat(currentId);
+}
+function localSave() {
+  try { localStorage.setItem('nx_chats', JSON.stringify(chats)); } catch {}
+}
+
+// ═══════════════════════════════════════════
+//  SETTINGS
+// ═══════════════════════════════════════════
+function loadSettings() {
+  try {
+    const s = localStorage.getItem('nx_cfg');
+    if (s) cfg = { ...cfg, ...JSON.parse(s) };
+  } catch {}
+  document.getElementById('jokeToggle').checked    = cfg.joke;
+  document.getElementById('memToggle').checked     = cfg.mem;
+  document.getElementById('autoTTSToggle').checked = cfg.autoTTS;
+  document.getElementById('tempSlider').value      = cfg.temp;
+  document.getElementById('tempDisplay').textContent = cfg.temp;
+  syncSettingsUI();
+}
+function saveSettings() {
+  cfg.joke    = document.getElementById('jokeToggle').checked;
+  cfg.mem     = document.getElementById('memToggle').checked;
+  cfg.autoTTS = document.getElementById('autoTTSToggle').checked;
+  cfg.temp    = parseFloat(document.getElementById('tempSlider').value);
+  localStorage.setItem('nx_cfg', JSON.stringify(cfg));
+  syncSettingsUI();
+}
+function syncSettingsUI() {
+  document.getElementById('jokeBadge').classList.toggle('hidden', !cfg.joke);
+  document.getElementById('memDot').classList.toggle('off', !cfg.mem);
+  const btn = document.getElementById('ttsBtn');
+  const lbl = document.getElementById('ttsLabel');
+  if (cfg.autoTTS) { btn.classList.add('active-green'); lbl.textContent = 'TTS: ON'; }
+  else { btn.classList.remove('active-green'); lbl.textContent = 'Auto TTS'; }
+  const log = getMem();
+  document.getElementById('memCount').textContent = `Memory: ${log.length} item${log.length!==1?'s':''}`;
+}
+function openSettings()  { syncSettingsUI(); document.getElementById('settingsOverlay').classList.add('on'); }
+function closeSettings() { document.getElementById('settingsOverlay').classList.remove('on'); }
+document.getElementById('settingsOverlay').addEventListener('click', e => { if(e.target.id==='settingsOverlay') closeSettings(); });
+
+// ═══════════════════════════════════════════
+//  MEMORY
+// ═══════════════════════════════════════════
+function getMem() { try { return JSON.parse(localStorage.getItem('nx_mem')||'[]'); } catch { return []; } }
+function addMem(u, a, cid) {
+  if (!cfg.mem) return;
+  const log = getMem();
+  log.push({ cid, u:u.substring(0,200), a:a.substring(0,300), ts:Date.now() });
+  if (log.length>30) log.splice(0, log.length-30);
+  localStorage.setItem('nx_mem', JSON.stringify(log));
+}
+function memCtx() {
+  if (!cfg.mem) return '';
+  const other = getMem().filter(e=>e.cid!==currentId).slice(-8);
+  if (!other.length) return '';
+  return '\n\n🧠 Memory snippets:\n' + other.map(e=>`- "${e.u}" → "${e.a.substring(0,100)}"`).join('\n');
+}
+function clearMem() {
+  if (confirm('Clear all memory?')) { localStorage.removeItem('nx_mem'); syncSettingsUI(); }
+}
+
+// ═══════════════════════════════════════════
+//  TTS
+// ═══════════════════════════════════════════
+function speak(text) {
+  if (!('speechSynthesis' in window)) { alert('TTS not supported in this browser.'); return; }
+  stopSpeak();
+  const utter = new SpeechSynthesisUtterance(text.replace(/[#*`_>~]/g,'').substring(0,3000));
+  utter.rate = 1; utter.pitch = 1; utter.lang = 'en-US';
+  // Pick a nice voice
+  const voices = speechSynthesis.getVoices();
+  const pick = voices.find(v=>v.name.includes('Google US English'))
+             || voices.find(v=>v.lang==='en-US'&&v.name.includes('Natural'))
+             || voices.find(v=>v.lang==='en-US')
+             || voices[0];
+  if (pick) utter.voice = pick;
+  utter.onstart = () => document.getElementById('ttsBadge').classList.remove('hidden');
+  utter.onend   = () => document.getElementById('ttsBadge').classList.add('hidden');
+  utter.onerror = () => document.getElementById('ttsBadge').classList.add('hidden');
+  activeSpeech = utter;
+  speechSynthesis.speak(utter);
+}
+function stopSpeak() {
+  if ('speechSynthesis' in window) speechSynthesis.cancel();
+  document.getElementById('ttsBadge').classList.add('hidden');
+  activeSpeech = null;
+}
+function toggleAutoTTS() {
+  cfg.autoTTS = !cfg.autoTTS;
+  document.getElementById('autoTTSToggle').checked = cfg.autoTTS;
+  localStorage.setItem('nx_cfg', JSON.stringify(cfg));
+  syncSettingsUI();
+}
+
+// Per-message read button
+function readMsg(btn, msgId) {
+  const bubble = document.getElementById('b-'+msgId);
+  if (!bubble) return;
+  const txt = bubble.innerText;
+  if (speechSynthesis.speaking) {
+    stopSpeak();
+    document.querySelectorAll('.mbtn.on').forEach(b=>{ b.classList.remove('on'); b.innerHTML='<i class="fas fa-volume-up"></i> Read'; });
+    return;
+  }
+  document.querySelectorAll('.mbtn.on').forEach(b=>{ b.classList.remove('on'); b.innerHTML='<i class="fas fa-volume-up"></i> Read'; });
+  btn.classList.add('on');
+  btn.innerHTML = '<i class="fas fa-stop"></i> Stop';
+  const utter = new SpeechSynthesisUtterance(txt.replace(/[#*`_>~]/g,'').substring(0,3000));
+  utter.rate=1; utter.lang='en-US';
+  const voices=speechSynthesis.getVoices();
+  const pick=voices.find(v=>v.name.includes('Google US English'))||voices.find(v=>v.lang==='en-US')||voices[0];
+  if(pick) utter.voice=pick;
+  utter.onstart=()=>document.getElementById('ttsBadge').classList.remove('hidden');
+  utter.onend=()=>{
+    document.getElementById('ttsBadge').classList.add('hidden');
+    btn.classList.remove('on'); btn.innerHTML='<i class="fas fa-volume-up"></i> Read';
+  };
+  utter.onerror=()=>{
+    document.getElementById('ttsBadge').classList.add('hidden');
+    btn.classList.remove('on'); btn.innerHTML='<i class="fas fa-volume-up"></i> Read';
+  };
+  speechSynthesis.speak(utter);
+}
+
+// Copy button
+function copyMsg(msgId) {
+  const bubble = document.getElementById('b-'+msgId);
+  if (!bubble) return;
+  const txt = bubble.innerText;
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(txt).then(()=>flashCopy(msgId)).catch(()=>fallbackCopy(txt, msgId));
+  } else { fallbackCopy(txt, msgId); }
+}
+function fallbackCopy(txt, msgId) {
+  const ta = document.createElement('textarea');
+  ta.value=txt; ta.style.position='fixed'; ta.style.opacity='0';
+  document.body.appendChild(ta); ta.select();
+  try { document.execCommand('copy'); flashCopy(msgId); } catch {}
+  document.body.removeChild(ta);
+}
+function flashCopy(msgId) {
+  const btn = document.getElementById('cp-'+msgId);
+  if(!btn) return;
+  const orig = btn.innerHTML;
+  btn.innerHTML='<i class="fas fa-check"></i> Copied!';
+  btn.style.color='#4caf50'; btn.style.borderColor='#4caf50';
+  setTimeout(()=>{ btn.innerHTML=orig; btn.style.color=''; btn.style.borderColor=''; }, 1500);
+}
+
+// ═══════════════════════════════════════════
+//  VOICE INPUT
+// ═══════════════════════════════════════════
+function toggleVoice() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    alert('Voice input only works in Chrome or Edge.\n\nPlease open this page in Google Chrome to use voice input.');
+    return;
+  }
+  if (location.protocol === 'file:') {
+    alert('⚠️ Voice input is blocked when opening the file directly.\n\nUpload to GitHub Pages and it will work there.\n\nOr open the file via: python -m http.server 8080 and use localhost:8080');
+    return;
+  }
+  if (listening) {
+    try { recog && recog.stop(); } catch {}
+    return;
+  }
+
+  // Request mic permission explicitly first
+  navigator.mediaDevices?.getUserMedia({ audio: true })
+    .then(() => startRecognition(SR))
+    .catch(err => {
+      alert('Microphone access denied.\n\nPlease click the 🔒 icon in your browser address bar and allow microphone access, then try again.');
+    });
+}
+
+function startRecognition(SR) {
+  recog = new SR();
+  recog.lang = 'en-US';
+  recog.interimResults = true;
+  recog.continuous = false;
+  recog.maxAlternatives = 1;
+
+  const inp = document.getElementById('inp');
+  const btn = document.getElementById('micBtn');
+  const lbl = document.getElementById('micLabel');
+
+  recog.onstart = () => {
+    listening = true;
+    btn.classList.add('active-red');
+    lbl.textContent = 'Listening…';
+  };
+  recog.onresult = e => {
+    const t = Array.from(e.results).map(r => r[0].transcript).join('');
+    inp.value = t;
+    autoResize(inp);
+  };
+  recog.onend = () => {
+    listening = false;
+    btn.classList.remove('active-red');
+    lbl.textContent = 'Voice';
+    if (inp.value.trim()) send();
+  };
+  recog.onerror = e => {
+    listening = false;
+    btn.classList.remove('active-red');
+    lbl.textContent = 'Voice';
+    if (e.error === 'not-allowed') {
+      alert('Microphone blocked. Allow microphone access in your browser settings.');
+    } else if (e.error !== 'aborted' && e.error !== 'no-speech') {
+      alert('Voice error: ' + e.error);
+    }
+  };
+
+  try { recog.start(); }
+  catch(e) { alert('Could not start voice: ' + e.message); }
+}
+
+// ═══════════════════════════════════════════
+//  IMAGE MODE
+// ═══════════════════════════════════════════
+function toggleImgMode() {
+  imgMode = !imgMode;
+  const btn = document.getElementById('imgBtn');
+  const lbl = document.getElementById('imgLabel');
+  const inp = document.getElementById('inp');
+  if (imgMode) {
+    btn.classList.add('active-purple');
+    lbl.textContent = 'Image Mode ON';
+    inp.placeholder = '🎨 Describe the image to generate…';
+  } else {
+    btn.classList.remove('active-purple');
+    lbl.textContent = 'Image Gen';
+    inp.placeholder = 'Ask NEXUS anything…';
+  }
+}
+
+const IMG_WORDS = ['generate image','generate an image','create image','create a picture','draw me','make image','make a picture','show me a picture','generate a picture','paint me','illustrate'];
+function wantsImage(t) { const l=t.toLowerCase(); return imgMode || IMG_WORDS.some(w=>l.includes(w)); }
+function cleanPrompt(t) {
+  let p=t;
+  IMG_WORDS.forEach(w=>{ p=p.replace(new RegExp(w+'\\s*(of|a|an)?\\s*','gi'),''); });
+  return p.trim()||t;
+}
+
+async function genImage(prompt) {
+  const msgs = document.getElementById('messages');
+  clearWelcome();
+
+  const loader = document.createElement('div');
+  loader.className = 'img-loading';
+  loader.id = 'imgLoader';
+  loader.innerHTML = `<div class="spinner"></div><span>Generating: "<em>${esc(prompt.substring(0,60))}</em>"… (10-20s)</span>`;
+  msgs.appendChild(loader); scroll();
+
+  const seed = Math.floor(Math.random()*100000);
+  const url  = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=768&height=512&seed=${seed}&nologo=true`;
+
+  try {
+    // Use fetch with a 30s timeout
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000);
+
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeout);
+
+    if (!res.ok) throw new Error('Status ' + res.status);
+
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+
+    const loader2 = document.getElementById('imgLoader');
+    if (loader2) loader2.remove();
+
+    const card = document.createElement('div');
+    card.className = 'msg-wrap ai';
+
+    const inner = document.createElement('div');
+    inner.className = 'img-card';
+    inner.innerHTML = `
+      <img src="${blobUrl}" alt="${esc(prompt)}" style="display:block;width:100%;cursor:pointer" onclick="window.open('${url}','_blank')">
+      <div class="img-card-footer">
+        <span>🎨 ${esc(prompt.substring(0,70))}${prompt.length>70?'…':''}</span>
+        <a href="${blobUrl}" download="nexus-image.jpg">⬇ Save</a>
+      </div>`;
+
+    card.appendChild(inner);
+    msgs.appendChild(card); scroll();
+    saveMsg('ai', `[Image generated: ${prompt}]`);
+
+  } catch(err) {
+    const loader2 = document.getElementById('imgLoader');
+    if (loader2) loader2.remove();
+
+    if (err.name === 'AbortError') {
+      addBubble('ai', '⚠ Image took too long to generate. Try a shorter, simpler prompt.');
+    } else if (location.protocol === 'file:') {
+      addBubble('ai', '⚠ Image generation is blocked when opening the file directly from your computer. Upload to GitHub Pages and it will work there.');
+    } else {
+      addBubble('ai', '⚠ Image generation failed: ' + err.message + '. Try a different prompt.');
+    }
+    console.error('Image gen error:', err);
+  }
+}
+
+// ═══════════════════════════════════════════
+//  FILE UPLOAD
+// ═══════════════════════════════════════════
+async function handleFile(input) {
+  const file = input.files[0];
+  input.value = '';
+  if (!file) return;
+  if (file.size > 15 * 1024 * 1024) { alert('Max file size is 15MB.'); return; }
+
+  const isImg = file.type.startsWith('image/');
+  const isPDF = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+  let content = '', icon = 'fa-file-alt';
+
+  try {
+    if (isImg) {
+      icon = 'fa-file-image';
+      content = await toBase64(file);
+      attached = { name:file.name, size:file.size, content, isImg:true, mime:file.type };
+    } else if (isPDF) {
+      icon = 'fa-file-pdf';
+      content = await readPDF(file);
+      attached = { name:file.name, size:file.size, content:`[PDF: ${file.name}]\n${content}`, isImg:false };
+    } else {
+      content = await toText(file);
+      attached = { name:file.name, size:file.size, content:`[File: ${file.name}]\n${content}`, isImg:false };
+    }
+
+    document.getElementById('fileIcon').className = `fas ${icon}`;
+    document.getElementById('fileName').textContent = file.name;
+    document.getElementById('fileSize').textContent = (file.size/1024).toFixed(1)+'KB';
+    document.getElementById('fileStrip').style.display = 'flex';
+    document.getElementById('inp').placeholder = `Ask about "${file.name}"…`;
+    document.getElementById('inp').focus();
+  } catch(e) {
+    alert('Could not read file: ' + e.message);
+    attached = null;
+  }
+}
+
+function clearFile() {
+  attached = null;
+  document.getElementById('fileStrip').style.display = 'none';
+  document.getElementById('inp').placeholder = imgMode ? '🎨 Describe the image to generate…' : 'Ask NEXUS anything…';
+}
+
+function toText(file) {
+  return new Promise((ok,err) => {
+    const r = new FileReader();
+    r.onload = e => ok(e.target.result.substring(0,20000));
+    r.onerror = () => err(new Error('Read failed'));
+    r.readAsText(file);
+  });
+}
+function toBase64(file) {
+  return new Promise((ok,err) => {
+    const r = new FileReader();
+    r.onload = e => ok(e.target.result.split(',')[1]);
+    r.onerror = () => err(new Error('Read failed'));
+    r.readAsDataURL(file);
+  });
+}
+async function readPDF(file) {
+  // Simple PDF extraction using FileReader — no external lib needed
+  // Falls back to raw text extraction trick
+  try {
+    const text = await toText(file);
+    // Strip binary noise, keep readable chars
+    return text.replace(/[^\x20-\x7E\n\r\t]/g,' ').replace(/\s{3,}/g,' ').substring(0,15000);
+  } catch { return '[Could not extract PDF text]'; }
+}
+
+// ═══════════════════════════════════════════
+//  CHAT MANAGEMENT
+// ═══════════════════════════════════════════
+function uid() { return Date.now()+'-'+Math.random().toString(36).substr(2,9); }
+
+function renderList() {
+  const el = document.getElementById('chatList');
+  el.innerHTML = '';
+  [...chats].sort((a,b)=>b.createdAt-a.createdAt).forEach(c => {
+    const d = document.createElement('div');
+    d.className = `chat-item ${c.id===currentId?'active':''}`;
+    d.onclick = e => { if(!e.target.closest('.chat-actions')) { stopSpeak(); loadChat(c.id); } };
+    d.innerHTML = `<i class="fas fa-comment"></i>
+      <span class="chat-name">${esc(c.name)}</span>
+      <div class="chat-actions">
+        <i class="fas fa-pen" onclick="event.stopPropagation();openRename('${c.id}')" title="Rename"></i>
+        <i class="fas fa-trash" onclick="event.stopPropagation();deleteChat('${c.id}')" title="Delete"></i>
+      </div>`;
+    el.appendChild(d);
+  });
+}
+
+function loadChat(id) {
+  const c = chats.find(x=>x.id===id);
+  if (!c) return;
+  currentId = id;
+  document.getElementById('chatTitle').textContent = c.name;
+  renderList();
+  const msgs = document.getElementById('messages');
+  msgs.innerHTML = '';
+  if (c.messages?.length) c.messages.forEach(m => addBubble(m.role, m.content, false));
+  else msgs.appendChild(mkWelcome());
+}
+
+function mkWelcome() {
+  const el = document.createElement('div');
+  el.className = 'welcome'; el.id = 'welcome';
+  el.innerHTML = `<h2>Welcome to NEXUS</h2>
+    <p>AI chat • Voice • Image generation • File upload</p>
+    <div class="suggestions">
+      <button onclick="useSug(this)">Generate an image of a futuristic city</button>
+      <button onclick="useSug(this)">Explain how black holes work</button>
+      <button onclick="useSug(this)">Write me a short poem</button>
+      <button onclick="useSug(this)">Generate an image of a sunset over mountains</button>
+      <button onclick="useSug(this)">Give me a startup idea for 2025</button>
+    </div>`;
+  return el;
+}
+
+function clearWelcome() { const w=document.getElementById('welcome'); if(w) w.remove(); }
+
+async function createNewChat() {
+  const c = { id:uid(), name:`Chat ${chats.length+1}`, messages:[], createdAt:Date.now() };
+  chats.unshift(c);
+  if (user) await fsSave(c); else localSave();
+  renderList(); loadChat(c.id);
+}
+
+async function deleteChat(id) {
+  if (!confirm('Delete this chat?')) return;
+  chats = chats.filter(c=>c.id!==id);
+  if (user) await fsDelete(id); else localSave();
+  if (!chats.length) await createNewChat();
+  else { if (currentId===id) loadChat(chats[0].id); renderList(); }
+}
+
+function openRename(id) {
+  renameTarget = id;
+  document.getElementById('renameInp').value = chats.find(c=>c.id===id)?.name||'';
+  document.getElementById('renameOverlay').classList.add('on');
+  setTimeout(()=>document.getElementById('renameInp').focus(),100);
+}
+function closeRename() { document.getElementById('renameOverlay').classList.remove('on'); renameTarget=null; }
+document.getElementById('renameOverlay').addEventListener('click', e=>{ if(e.target.id==='renameOverlay') closeRename(); });
+document.getElementById('renameInp').addEventListener('keydown', e=>{ if(e.key==='Enter') confirmRename(); });
+async function confirmRename() {
+  const name = document.getElementById('renameInp').value.trim();
+  if (name && renameTarget) {
+    const c = chats.find(x=>x.id===renameTarget);
+    if (c) {
+      c.name = name;
+      if (user) await fsSave(c); else localSave();
+      renderList();
+      if (currentId===renameTarget) document.getElementById('chatTitle').textContent = name;
+    }
+  }
+  closeRename();
+}
+
+// ═══════════════════════════════════════════
+//  MESSAGES UI
+// ═══════════════════════════════════════════
+function addBubble(role, text, save=true) {
+  clearWelcome();
+  const msgs = document.getElementById('messages');
+  const msgId = uid();
+  const wrap = document.createElement('div');
+  wrap.className = `msg-wrap ${role}`;
+
+  const bubble = document.createElement('div');
+  bubble.className = `bubble ${role}`;
+  bubble.id = 'b-'+msgId;
+  bubble.textContent = text;
+  wrap.appendChild(bubble);
+
+  if (role==='ai') {
+    const btns = document.createElement('div');
+    btns.className = 'msg-btns';
+    btns.innerHTML = `
+      <button class="mbtn" id="rd-${msgId}" onclick="readMsg(this,'${msgId}')"><i class="fas fa-volume-up"></i> Read</button>
+      <button class="mbtn" id="cp-${msgId}" onclick="copyMsg('${msgId}')"><i class="fas fa-copy"></i> Copy</button>`;
+    wrap.appendChild(btns);
+  }
+
+  msgs.appendChild(wrap);
+  scroll();
+  if (save) saveMsg(role, text);
+}
+
+function saveMsg(role, text) {
+  const c = chats.find(x=>x.id===currentId);
+  if (!c) return;
+  c.messages = c.messages||[];
+  c.messages.push({ role, content:text, timestamp:Date.now() });
+  if (user) fsSave(c); else localSave();
+}
+
+function showTyping() {
+  removeTyping();
+  const t = document.createElement('div');
+  t.className='typing-el'; t.id='typingEl';
+  t.innerHTML='<i class="fas fa-ellipsis-h"></i> NEXUS is thinking…';
+  const m=document.getElementById('messages');
+  m.appendChild(t); scroll();
+}
+function removeTyping() { const t=document.getElementById('typingEl'); if(t)t.remove(); }
+function useSug(btn) { document.getElementById('inp').value=btn.innerText; send(); }
+function scroll() { const m=document.getElementById('messages'); m.scrollTop=m.scrollHeight; }
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// ═══════════════════════════════════════════
+//  SEND MESSAGE
+// ═══════════════════════════════════════════
+async function send() {
+  const inp = document.getElementById('inp');
+  const text = inp.value.trim();
+  if (!text && !attached) return;
+
+  // Image generation
+  if (!attached && wantsImage(text)) {
+    addBubble('user', text);
+    inp.value=''; autoResize(inp);
+    if(imgMode) toggleImgMode();
+    await genImage(cleanPrompt(text));
+    return;
+  }
+
+  addBubble('user', text||(attached?`[Attached: ${attached.name}]`:''), true);
+  inp.value=''; autoResize(inp);
+  showTyping();
+
+  // Build history
+  const chat = chats.find(c=>c.id===currentId);
+  let history = (chat?.messages||[]).map(m=>({
+    role: m.role==='ai'?'assistant':'user',
+    content: m.content
+  }));
+
+  // Inject file into last message — always as STRING (Groq requires string content)
+  if (attached) {
+    let fileContext = '';
+    if (attached.isImg) {
+      // Groq text models don't accept base64 image arrays — describe it as an attachment
+      fileContext = `\n\n[The user has attached an image file: "${attached.name}". Unfortunately direct image analysis requires a vision model. Please let the user know you can see they attached an image but describe what assistance you can offer with it.]`;
+    } else {
+      fileContext = '\n\n' + attached.content;
+    }
+    // Append to the last user message as a string
+    if (history.length && history[history.length-1].role === 'user') {
+      history[history.length-1].content = String(history[history.length-1].content) + fileContext;
+    } else {
+      history.push({ role:'user', content: fileContext });
+    }
+    clearFile();
+  }
+
+  const sysPrompt = 'You are NEXUS, a powerful AI assistant powered by Groq.'
+    + (cfg.joke ? ' 😄 Be funny, use jokes, puns, and emojis in every reply! 🎉' : '')
+    + memCtx();
+
+  // Safety: ensure ALL message content is a plain string — Groq rejects arrays
+  const safeHistory = history.map(m => ({
+    role: m.role,
+    content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content)
+  }));
+
+  const model = document.getElementById('modelSelect').value;
+
+  try {
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+GROQ_KEY },
+      body: JSON.stringify({
+        model: model,
+        messages: [{ role:'system', content:sysPrompt }, ...safeHistory],
+        max_tokens: 1500,
+        temperature: cfg.temp
+      })
+    });
+    removeTyping();
+    if (!res.ok) { const e=await res.json(); throw new Error(e.error?.message||'HTTP '+res.status); }
+    const data = await res.json();
+    const reply = data.choices?.[0]?.message?.content || 'No response.';
+    addBubble('ai', reply);
+    addMem(text, reply, currentId);
+    if (cfg.autoTTS) {
+      // Small delay so voices load
+      setTimeout(()=>speak(reply), 300);
+    }
+  } catch(err) {
+    removeTyping();
+    addBubble('ai', '⚠ Error: ' + err.message);
+    console.error(err);
+  }
+}
+
+// ═══════════════════════════════════════════
+//  AUTO-RESIZE TEXTAREA
+// ═══════════════════════════════════════════
+function autoResize(el) { el.style.height='auto'; el.style.height=el.scrollHeight+'px'; }
+
+// ═══════════════════════════════════════════
+//  BOOT
+// ═══════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+  loadSettings();
+  const inp = document.getElementById('inp');
+  inp.addEventListener('input', ()=>autoResize(inp));
+  // Preload TTS voices
+  if ('speechSynthesis' in window) {
+    speechSynthesis.getVoices();
+    speechSynthesis.onvoiceschanged = () => speechSynthesis.getVoices();
+  }
+  setupAuth();
+
+  // Warn if running on file:// — several features need http/https
+  if (location.protocol === 'file:') {
+    setTimeout(() => {
+      addBubble('ai', '⚠️ You\'re opening this file directly from your computer (file://).\n\nTo use Google Sign-In, Voice Input, and Image Generation, upload the file to GitHub Pages:\n👉 yoraystar-lab.github.io/Nexus\n\nChat with Groq AI and file uploads still work fine right here!', false);
+    }, 800);
+  }
+
+  console.log('✅ NEXUS v6 ready');
+});
+</script>
+</body>
+</html>
